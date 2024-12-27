@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+async-signal = { version = "0.2" }
+mlua = { version = "0.10", features = ["luajit52", "vendored", "async", "send"] }
+smol = { version = "2" }
