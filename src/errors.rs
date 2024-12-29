@@ -41,3 +41,53 @@ impl<T> NotFoundExt<T> for Option<T> {
         self.ok_or_else(|| not_found(error))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_runtime_error_display_io() {
+        let error = RuntimeError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "io error",
+        ));
+        assert_eq!(format!("{}", error), "io error");
+    }
+
+    #[test]
+    fn test_runtime_error_display_lua() {
+        let error = RuntimeError::Lua(mlua::Error::RuntimeError("lua error".to_string()));
+        assert_eq!(format!("{}", error), "runtime error: lua error");
+    }
+
+    #[test]
+    fn test_runtime_error_from_io() {
+        let error = not_found("io error");
+        let error: RuntimeError = error.into();
+        assert!(matches!(error, RuntimeError::Io(_)));
+    }
+
+    #[test]
+    fn test_runtime_error_from_lua() {
+        let error = mlua::Error::RuntimeError("lua error".to_string());
+        let error: RuntimeError = error.into();
+        assert!(matches!(error, RuntimeError::Lua(_)));
+    }
+
+    #[test]
+    fn test_option_not_found_ext_some() {
+        let value = Some(42);
+        let result = value.ok_or_not_found("not found");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 42);
+    }
+
+    #[test]
+    fn test_option_not_found_ext_none() {
+        let value: Option<i32> = None;
+        let result = value.ok_or_not_found("test error");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+    }
+}

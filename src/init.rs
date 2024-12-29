@@ -40,3 +40,56 @@ pub async fn init(lua: Lua, _: ()) -> LuaResult<LuaTable> {
     init.set("signal", lua.create_table_from(unix::signal_table())?)?;
     Ok(init)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_getpid() {
+        let lua = Lua::new();
+        let result = smol::block_on(pid(lua, ()));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), std::process::id());
+    }
+
+    #[test]
+    fn test_sleep() {
+        let lua = Lua::new();
+        let n = 0;
+        let result = smol::block_on(sleep(lua, n));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), n);
+    }
+
+    #[test]
+    fn test_every() {
+        let lua = Lua::new();
+        let n = 0;
+        let func = lua.create_function(|_, ()| Ok(())).unwrap();
+        let result = smol::block_on(every(lua, (n, func, LuaMultiValue::new())));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_kill() {
+        let lua = Lua::new();
+        let result = smol::block_on(kill(lua, (0, 0)));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 0);
+    }
+
+    #[test]
+    fn test_kill_err() {
+        let lua = Lua::new();
+        let result = smol::block_on(kill(lua, (0, 1337)));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_init() {
+        let lua = Lua::new();
+        let result = smol::block_on(init(lua, ()));
+        assert!(result.is_ok());
+    }
+}

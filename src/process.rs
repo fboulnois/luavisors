@@ -150,3 +150,136 @@ pub async fn exec(lua: Lua, (cmd, args): (String, LuaMultiValue)) -> LuaResult<L
 
     Ok(result)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn test_setup_spawn() -> std::io::Result<Child> {
+        spawn("rustc", ["--version"]).await
+    }
+
+    async fn test_setup_exec(lua: &Lua) -> LuaResult<LuaTable> {
+        let cmd = "rustc".to_string();
+        let args = LuaMultiValue::new();
+        exec(lua.clone(), (cmd, args)).await
+    }
+
+    #[test]
+    fn test_spawn() {
+        smol::block_on(async {
+            let mut child = test_setup_spawn().await.unwrap();
+            let status = child.status().await.unwrap();
+            assert!(status.success());
+        });
+    }
+
+    #[test]
+    fn test_lua_spawn() {
+        smol::block_on(async {
+            let lua = Lua::new();
+            let cmd = "rustc".to_string();
+            let args = LuaMultiValue::from(vec![LuaValue::String(
+                lua.create_string("--version").unwrap(),
+            )]);
+            let mut child = lua_spawn(&lua, cmd, args).await.unwrap();
+            let status = child.status().await.unwrap();
+            assert!(status.success());
+        });
+    }
+
+    #[test]
+    fn test_stream_to_lua_string_stdout() {
+        smol::block_on(async {
+            let lua = Lua::new();
+            let child = test_setup_spawn().await.unwrap();
+            let arc = Arc::new(RwLock::new(child));
+            let stdout = stream_to_lua_string(lua.clone(), arc.clone(), StdStream::Stdout)
+                .await
+                .unwrap()
+                .to_string()
+                .unwrap();
+            assert!(stdout.starts_with("rustc"));
+        });
+    }
+
+    #[test]
+    fn test_stream_to_lua_string_stderr() {
+        smol::block_on(async {
+            let lua = Lua::new();
+            let child = test_setup_spawn().await.unwrap();
+            let arc = Arc::new(RwLock::new(child));
+            let stderr = stream_to_lua_string(lua.clone(), arc.clone(), StdStream::Stderr)
+                .await
+                .unwrap();
+            assert_eq!(stderr, LuaValue::Nil);
+        });
+    }
+
+    #[test]
+    fn test_exec() {
+        smol::block_on(async {
+            let lua = Lua::new();
+            assert!(test_setup_exec(&lua).await.is_ok());
+        });
+    }
+
+    #[test]
+    fn test_exec_pid() {
+        smol::block_on(async {
+            let lua = Lua::new();
+            let table = test_setup_exec(&lua).await.unwrap();
+            let pid = table.get::<LuaFunction>("pid").unwrap();
+            assert!(pid.call_async::<i32>(()).await.is_ok());
+        });
+    }
+
+    #[test]
+    fn test_exec_status() {
+        smol::block_on(async {
+            let lua = Lua::new();
+            let table = test_setup_exec(&lua).await.unwrap();
+            let status = table.get::<LuaFunction>("status").unwrap();
+            assert!(status.call_async::<i32>(()).await.is_ok());
+        });
+    }
+
+    #[test]
+    fn test_exec_stdout() {
+        smol::block_on(async {
+            let lua = Lua::new();
+            let table = test_setup_exec(&lua).await.unwrap();
+            let stdout = table.get::<LuaFunction>("stdout").unwrap();
+            assert!(stdout
+                .call_async::<Option<String>>(())
+                .await
+                .unwrap()
+                .is_some());
+        });
+    }
+
+    #[test]
+    fn test_exec_stderr() {
+        smol::block_on(async {
+            let lua = Lua::new();
+            let table = test_setup_exec(&lua).await.unwrap();
+            let stderr = table.get::<LuaFunction>("stderr").unwrap();
+            // stderr is empty and returns nil
+            assert!(stderr
+                .call_async::<Option<String>>(())
+                .await
+                .unwrap()
+                .is_none());
+        });
+    }
+
+    #[test]
+    fn test_exec_kill() {
+        smol::block_on(async {
+            let lua = Lua::new();
+            let table = test_setup_exec(&lua).await.unwrap();
+            let kill = table.get::<LuaFunction>("kill").unwrap();
+            assert!(kill.call_async::<i32>(()).await.is_ok());
+        });
+    }
+}

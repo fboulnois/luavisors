@@ -105,3 +105,83 @@ fn main() {
         }
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_as_chunk() {
+        let chunk = Chunk::Code(String::from("print('hello world')"));
+        assert!(chunk.source().is_ok());
+    }
+
+    #[test]
+    fn test_as_chunk_err() {
+        let chunk = Chunk::Path(std::path::PathBuf::new());
+        assert!(chunk.source().is_err());
+    }
+
+    #[test]
+    fn test_help() {
+        smol::block_on(async {
+            help().await.unwrap();
+        });
+    }
+
+    #[test]
+    fn test_parse_args_path() {
+        smol::block_on(async {
+            let lua = Lua::new();
+            let script = "test.lua";
+            let args = vec!["test".to_string(), script.to_string()];
+            let (chunk, table) = parse_args(&lua, args).await.unwrap();
+            let cmd = table.get::<String>(-1).unwrap();
+            assert_eq!(chunk.to_string(), script);
+            assert_eq!(cmd, "test");
+        });
+    }
+
+    #[test]
+    fn test_parse_args_code() {
+        smol::block_on(async {
+            let lua = Lua::new();
+            let script = "print('hello world')";
+            let args = vec!["test".to_string(), script.to_string()];
+            let (chunk, table) = parse_args(&lua, args).await.unwrap();
+            let cmd = table.get::<String>(-1).unwrap();
+            assert_eq!(chunk.to_string(), script);
+            assert_eq!(cmd, "test");
+        });
+    }
+
+    #[test]
+    fn test_unsafe_lua() {
+        smol::block_on(async {
+            let lua = unsafe_lua().await;
+            assert!(lua.load("assert(require('ffi'))").exec().is_ok());
+        });
+    }
+
+    #[test]
+    fn test_lua_core() {
+        smol::block_on(async {
+            let code = "function add(a, b) return a + b end; add(1, 2)";
+            let args = vec!["test".to_string(), code.to_string()];
+            assert!(lua(args).await.is_ok());
+        });
+    }
+
+    #[test]
+    fn test_run_help() {
+        let args = vec!["test".to_string()];
+        assert!(run(args).is_ok());
+    }
+
+    #[test]
+    fn test_run_lua() {
+        let code = "function add(a, b) return a + b end; add(1, 2)";
+        let args = vec!["test".to_string(), code.to_string()];
+        assert!(run(args).is_ok());
+    }
+}

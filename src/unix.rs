@@ -72,3 +72,50 @@ pub async fn kill(pid: i32, sig: i32) -> AppResult<i32> {
     }
     Ok(result)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_signal_table() {
+        assert_eq!(SIGNAL_TABLE.len(), 29);
+    }
+
+    #[test]
+    fn test_signal_table_fn() {
+        let signals = signal_table();
+        assert_eq!(signals.len(), 29);
+        assert!(signals.contains(&("SIGKILL", 9)));
+    }
+
+    #[test]
+    fn test_valid_signals() {
+        let signals = valid_signals();
+        assert_eq!(signals.len(), 24);
+        assert!(!signals.contains(&Signal::Kill));
+    }
+
+    #[test]
+    fn test_signal_wait() {
+        smol::block_on(async {
+            assert!(signal_wait().await.is_ok());
+        });
+    }
+
+    #[test]
+    fn test_kill_ok() {
+        let pid = std::process::id() as i32;
+        smol::block_on(async {
+            assert!(kill(pid, 0).await.is_ok());
+        });
+    }
+
+    #[test]
+    fn test_kill_err() {
+        let pid = std::process::id() as i32;
+        smol::block_on(async {
+            assert!(kill(pid, 1337).await.is_err());
+        });
+    }
+}
