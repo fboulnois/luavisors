@@ -1,6 +1,6 @@
 [package]
 name = "luavisors"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 authors = [ "fboulnois <fboulnois@users.noreply.github.com>" ]
 description = "A minimal process supervisor for containers using Rust and Lua"
