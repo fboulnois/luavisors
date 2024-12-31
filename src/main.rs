@@ -1,4 +1,5 @@
 #![deny(unsafe_code)]
+#![doc = include_str!("../README.md")]
 
 use mlua::{prelude::*, AsChunk};
 

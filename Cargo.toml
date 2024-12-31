@@ -2,6 +2,10 @@
 name = "luavisors"
 version = "0.1.0"
 edition = "2021"
+authors = [ "fboulnois <fboulnois@users.noreply.github.com>" ]
+description = "A minimal process supervisor for containers using Rust and Lua"
+keywords = [ "pid1", "init", "supervisor", "lua", "scripting" ]
+readme = "README.md"
 
 [dependencies]
 async-signal = { version = "0.2" }
