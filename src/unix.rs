@@ -2,6 +2,7 @@ use async_signal::{Signal, Signals};
 
 use crate::errors::AppResult;
 
+/// Table of standard signals
 pub static SIGNAL_TABLE: [(&str, Signal); 29] = [
     ("SIGHUP", Signal::Hup),
     ("SIGINT", Signal::Int),
@@ -34,6 +35,7 @@ pub static SIGNAL_TABLE: [(&str, Signal); 29] = [
     ("SIGSYS", Signal::Sys),
 ];
 
+/// Convert `SIGNAL_TABLE` to a table which is usable in Lua
 pub fn signal_table() -> Vec<(&'static str, i32)> {
     SIGNAL_TABLE
         .into_iter()
@@ -41,6 +43,7 @@ pub fn signal_table() -> Vec<(&'static str, i32)> {
         .collect()
 }
 
+/// `SIGNAL_TABLE` without signals that cannot be caught
 pub fn valid_signals() -> Vec<Signal> {
     let mut signals = Vec::new();
     for (_name, signal) in SIGNAL_TABLE.into_iter() {
@@ -52,16 +55,19 @@ pub fn valid_signals() -> Vec<Signal> {
     signals
 }
 
+/// Wait for valid signals
 pub async fn signal_wait() -> AppResult<Signals> {
     Ok(Signals::new(valid_signals())?)
 }
 
+/// Wrap the C `kill` function
 mod libc {
     extern "C" {
         pub fn kill(pid: i32, sig: i32) -> i32;
     }
 }
 
+/// Send a signal to a process
 #[allow(unsafe_code)]
 pub async fn kill(pid: i32, sig: i32) -> AppResult<i32> {
     // SAFETY: safe because an invalid pid or signal will return an error

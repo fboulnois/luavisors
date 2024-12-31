@@ -11,6 +11,7 @@ use smol::{
 
 use crate::{errors::AppResult, unix};
 
+/// Forward signals to the child process
 async fn forward_signals(child: Arc<RwLock<Child>>) -> AppResult<()> {
     let pid = child.read().await.id() as i32;
     let mut signals = unix::signal_wait().await?;
@@ -21,6 +22,7 @@ async fn forward_signals(child: Arc<RwLock<Child>>) -> AppResult<()> {
     Ok(())
 }
 
+/// Spawn a new process asynchronously
 async fn spawn<S, I>(program: S, args: I) -> std::io::Result<Child>
 where
     S: AsRef<OsStr>,
@@ -31,6 +33,7 @@ where
     cmd.spawn()
 }
 
+/// Spawn a new process from Lua
 async fn lua_spawn(_lua: &Lua, cmd: String, args: LuaMultiValue) -> LuaResult<Child> {
     let args: Vec<String> = args
         .into_iter()
@@ -39,11 +42,13 @@ async fn lua_spawn(_lua: &Lua, cmd: String, args: LuaMultiValue) -> LuaResult<Ch
     Ok(spawn(cmd, args).await?)
 }
 
+/// `stdout` and `stderr` standard streams
 enum StdStream {
     Stdout,
     Stderr,
 }
 
+/// Return standard stream as a Lua string
 async fn stream_to_lua_string(
     lua: Lua,
     child: Arc<RwLock<Child>>,
@@ -80,6 +85,7 @@ async fn stream_to_lua_string(
     Ok(result)
 }
 
+/// Asynchronously execute a command in Lua
 pub async fn exec(lua: Lua, (cmd, args): (String, LuaMultiValue)) -> LuaResult<LuaTable> {
     let child = lua_spawn(&lua, cmd, args).await?;
     let child = Arc::new(RwLock::new(child));

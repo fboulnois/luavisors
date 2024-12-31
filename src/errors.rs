@@ -1,3 +1,4 @@
+/// Runtime error handling for the application
 #[derive(Debug)]
 #[allow(dead_code)]
 pub enum RuntimeError {
@@ -5,8 +6,10 @@ pub enum RuntimeError {
     Lua(mlua::Error),
 }
 
+/// Result type for the application
 pub type AppResult<T> = std::result::Result<T, RuntimeError>;
 
+/// Convert RuntimeError to a string
 impl std::fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -16,26 +19,31 @@ impl std::fmt::Display for RuntimeError {
     }
 }
 
+/// Convert std::io::Error to RuntimeError
 impl From<std::io::Error> for RuntimeError {
     fn from(kind: std::io::Error) -> Self {
         RuntimeError::Io(kind)
     }
 }
 
+/// Convert mlua::Error to RuntimeError
 impl From<mlua::Error> for RuntimeError {
     fn from(kind: mlua::Error) -> Self {
         RuntimeError::Lua(kind)
     }
 }
 
+/// Create a new `Not Found` error
 pub fn not_found(error: &str) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::NotFound, error)
 }
 
+/// Extension trait to handle `Not Found` errors
 pub trait NotFoundExt<T> {
     fn ok_or_not_found(self, error: &str) -> Result<T, std::io::Error>;
 }
 
+/// Implement NotFoundExt for Option
 impl<T> NotFoundExt<T> for Option<T> {
     fn ok_or_not_found(self, error: &str) -> Result<T, std::io::Error> {
         self.ok_or_else(|| not_found(error))

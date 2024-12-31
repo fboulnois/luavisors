@@ -7,11 +7,16 @@ use crate::{
     init::init,
 };
 
+/// Error handling functions
 mod errors;
+/// Contains the `init` Lua module
 mod init;
+/// Process management functions
 mod process;
+/// Unix-specific functions
 mod unix;
 
+/// Print usage information
 async fn help() -> AppResult<()> {
     let path = std::env::current_exe()?;
     let exe = path
@@ -23,11 +28,13 @@ async fn help() -> AppResult<()> {
     Ok(())
 }
 
+/// Lua code or path to Lua script
 enum Chunk {
     Code(String),
     Path(std::path::PathBuf),
 }
 
+/// Convert Lua chunk to bytes
 impl<'a> AsChunk<'a> for Chunk {
     fn source(self) -> std::io::Result<std::borrow::Cow<'a, [u8]>> {
         match self {
@@ -37,6 +44,7 @@ impl<'a> AsChunk<'a> for Chunk {
     }
 }
 
+/// Convert Lua chunk to a string
 impl std::fmt::Display for Chunk {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -46,6 +54,7 @@ impl std::fmt::Display for Chunk {
     }
 }
 
+/// Parse command line arguments
 async fn parse_args(lua: &Lua, args: Vec<String>) -> AppResult<(Chunk, LuaTable)> {
     // find position of lua script in args
     let pos = args.iter().position(|arg| arg.ends_with(".lua"));
@@ -62,12 +71,14 @@ async fn parse_args(lua: &Lua, args: Vec<String>) -> AppResult<(Chunk, LuaTable)
     Ok((chunk, table))
 }
 
+/// Create a new Lua state which allows unsafe code
 #[allow(unsafe_code)]
 async fn unsafe_lua() -> Lua {
     // SAFETY: allows use of the luajit ffi and c modules
     unsafe { Lua::unsafe_new() }
 }
 
+/// Initialize Lua state with `init` module and `arg` table and run the chunk
 async fn lua(args: Vec<String>) -> AppResult<()> {
     let lua = unsafe_lua().await;
     // add init table to package preload
@@ -84,6 +95,7 @@ async fn lua(args: Vec<String>) -> AppResult<()> {
     Ok(())
 }
 
+/// Execute the program with command line arguments
 fn run(args: Vec<String>) -> AppResult<()> {
     smol::block_on(async {
         if args.len() > 1 {
@@ -95,6 +107,7 @@ fn run(args: Vec<String>) -> AppResult<()> {
     })
 }
 
+/// Main program entrypoint
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     match run(args) {

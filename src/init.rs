@@ -3,15 +3,18 @@ use smol::stream::StreamExt;
 
 use crate::{process, unix};
 
+/// Return the current process identifier
 async fn pid(_lua: Lua, _: ()) -> LuaResult<u32> {
     Ok(std::process::id())
 }
 
+/// Sleep the Lua runtime for `n` seconds
 async fn sleep(_lua: Lua, n: u64) -> LuaResult<u64> {
     smol::Timer::after(std::time::Duration::from_secs(n)).await;
     Ok(n)
 }
 
+/// Asynchronously call a Lua function every `n` seconds
 async fn every(_lua: Lua, (n, func, args): (u64, LuaFunction, LuaMultiValue)) -> LuaResult<()> {
     smol::spawn(async move {
         let mut timer = smol::Timer::interval(std::time::Duration::from_secs(n));
@@ -24,12 +27,14 @@ async fn every(_lua: Lua, (n, func, args): (u64, LuaFunction, LuaMultiValue)) ->
     Ok(())
 }
 
+/// Send a signal to a process from Lua
 async fn kill(_lua: Lua, (pid, sig): (i32, i32)) -> LuaResult<i32> {
     unix::kill(pid, sig)
         .await
         .map_err(|err| LuaError::runtime(err.to_string()))
 }
 
+/// Return the `init` Lua module
 pub async fn init(lua: Lua, _: ()) -> LuaResult<LuaTable> {
     let init = lua.create_table()?;
     init.set("exec", lua.create_async_function(process::exec)?)?;
