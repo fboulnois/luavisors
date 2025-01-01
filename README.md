@@ -71,6 +71,9 @@ init.every(seconds, function, ...)
 -- Execute a child process asynchronously
 local child = init.exec(command, ...)
 
+-- Get the child process id
+child:pid()
+
 -- Get the child process output
 child:stdout()
 
@@ -108,7 +111,7 @@ luavisors lua/api.lua
 cargo run -- lua/api.lua
 ```
 
-See also the included [`Dockerfile`](Dockerfile) for a Docker-based example.
+See also the included [`Dockerfile`](./Dockerfile) for a Docker-based example.
 
 ## Development
 
