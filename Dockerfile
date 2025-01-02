@@ -3,8 +3,9 @@ FROM rust:1.81 AS env-build
 
 # set work directory and copy source
 WORKDIR /srv
-COPY README.md Cargo.toml Cargo.lock /srv/
+COPY Cargo.toml Cargo.lock LICENSE README.md /srv/
 COPY src/ /srv/src/
+COPY lua/ /srv/lua/
 
 # cache dependencies and objects and build binary
 RUN \
