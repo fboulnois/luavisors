@@ -36,8 +36,11 @@ enum Chunk {
 }
 
 /// Convert Lua chunk to bytes
-impl<'a> AsChunk<'a> for Chunk {
-    fn source(self) -> std::io::Result<std::borrow::Cow<'a, [u8]>> {
+impl AsChunk for Chunk {
+    fn source<'a>(&self) -> std::io::Result<std::borrow::Cow<'a, [u8]>>
+    where
+        Self: 'a,
+    {
         match self {
             Chunk::Code(code) => code.source(),
             Chunk::Path(path) => path.source(),
