@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM rust:1.81 AS env-build
+FROM rust:1.82 AS env-build
 
 # set work directory and copy source
 WORKDIR /srv
