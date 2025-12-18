@@ -5,6 +5,7 @@ edition = "2021"
 authors = [ "fboulnois <fboulnois@users.noreply.github.com>" ]
 description = "A minimal process supervisor for containers using Rust and Lua"
 keywords = [ "pid1", "init", "supervisor", "lua", "scripting" ]
+categories = [ "os::unix-apis", "command-line-utilities", "asynchronous", "development-tools" ]
 readme = "README.md"
 repository = "https://github.com/fboulnois/luavisors"
 license = "MPL-2.0"
