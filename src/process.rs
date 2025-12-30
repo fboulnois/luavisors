@@ -4,7 +4,7 @@ use async_signal::Signal;
 use mlua::prelude::*;
 use smol::{
     io::AsyncReadExt,
-    lock::RwLock,
+    lock::{Mutex, RwLock},
     process::{Child, Stdio},
     stream::StreamExt,
 };
@@ -48,52 +48,42 @@ async fn lua_spawn(_lua: &Lua, cmd: String, args: LuaMultiValue) -> LuaResult<Ch
     Ok(spawn(cmd, vargs).await?)
 }
 
-/// `stdout` and `stderr` standard streams
-enum StdStream {
-    Stdout,
-    Stderr,
+/// Spawn a task to read from a stream
+async fn spawn_stream_task(
+    stream: Option<impl AsyncReadExt + Unpin + Send + 'static>,
+) -> Arc<Mutex<Option<smol::Task<std::io::Result<Vec<u8>>>>>> {
+    let task = stream.map(|mut stream| {
+        smol::spawn(async move {
+            let mut data = Vec::new();
+            stream.read_to_end(&mut data).await?;
+            Ok(data)
+        })
+    });
+    Arc::new(Mutex::new(task))
 }
 
-/// Return standard stream as a Lua string
-async fn stream_to_lua_string(
+/// Read a stream into a Lua string
+async fn read_stream_task(
     lua: Lua,
-    child: Arc<RwLock<Child>>,
-    stream: StdStream,
+    task: Arc<Mutex<Option<smol::Task<std::io::Result<Vec<u8>>>>>>,
 ) -> LuaResult<LuaValue> {
-    let mut result = Vec::new();
-    let mut child = child.write().await;
-    child.stdin.take();
-    match stream {
-        StdStream::Stdout => {
-            child
-                .stdout
-                .as_mut()
-                .ok_or(LuaError::runtime("failed to get stdout"))?
-                .read_to_end(&mut result)
-                .await?;
-        }
-        StdStream::Stderr => {
-            child
-                .stderr
-                .as_mut()
-                .ok_or(LuaError::runtime("failed to get stderr"))?
-                .read_to_end(&mut result)
-                .await?;
-        }
+    let task = task.lock().await.take().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "stream already consumed")
+    })?;
+    let data = task.await?;
+    if data.is_empty() {
+        return Ok(LuaValue::Nil);
     }
-    let result = match result.is_empty() {
-        true => mlua::Value::Nil,
-        false => {
-            let output = lua.create_string(result.trim_ascii_end())?;
-            mlua::Value::String(output)
-        }
-    };
-    Ok(result)
+    Ok(LuaValue::String(lua.create_string(&data)?))
 }
 
 /// Asynchronously execute a command in Lua
 pub async fn exec(lua: Lua, (cmd, args): (String, LuaMultiValue)) -> LuaResult<LuaTable> {
-    let child = lua_spawn(&lua, cmd, args).await?;
+    let mut child = lua_spawn(&lua, cmd, args).await?;
+
+    let stdout = spawn_stream_task(child.stdout.take()).await;
+    let stderr = spawn_stream_task(child.stderr.take()).await;
+
     let child = Arc::new(RwLock::new(child));
 
     smol::spawn(forward_signals(child.clone())).detach();
@@ -128,22 +118,20 @@ pub async fn exec(lua: Lua, (cmd, args): (String, LuaMultiValue)) -> LuaResult<L
     )?;
 
     // stdout
-    let clone = child.clone();
     result.set(
         "stdout",
         lua.create_async_function(move |lua, ()| {
-            let child = clone.clone();
-            async move { stream_to_lua_string(lua, child, StdStream::Stdout).await }
+            let task = stdout.clone();
+            async move { read_stream_task(lua, task).await }
         })?,
     )?;
 
     // stderr
-    let clone = child.clone();
     result.set(
         "stderr",
         lua.create_async_function(move |lua, ()| {
-            let child = clone.clone();
-            async move { stream_to_lua_string(lua, child, StdStream::Stderr).await }
+            let task = stderr.clone();
+            async move { read_stream_task(lua, task).await }
         })?,
     )?;
 
@@ -215,30 +203,65 @@ mod tests {
     }
 
     #[test]
-    fn test_stream_to_lua_string_stdout() {
+    fn test_spawn_stream_task_stdout() {
         smol::block_on(async {
-            let lua = Lua::new();
-            let child = test_setup_spawn().await.unwrap();
-            let arc = Arc::new(RwLock::new(child));
-            let stdout = stream_to_lua_string(lua.clone(), arc.clone(), StdStream::Stdout)
-                .await
-                .unwrap()
-                .to_string()
-                .unwrap();
-            assert!(stdout.starts_with("rustc"));
+            let mut child = test_setup_spawn().await.unwrap();
+            let task = spawn_stream_task(child.stdout.take()).await;
+            let data = task.lock().await.take().unwrap().await.unwrap();
+            assert!(data.starts_with(b"rustc"));
         });
     }
 
     #[test]
-    fn test_stream_to_lua_string_stderr() {
+    fn test_spawn_stream_task_stderr() {
+        smol::block_on(async {
+            let mut child = test_setup_spawn().await.unwrap();
+            let task = spawn_stream_task(child.stderr.take()).await;
+            let data = task.lock().await.take().unwrap().await.unwrap();
+            assert!(data.is_empty());
+        });
+    }
+
+    #[test]
+    fn test_spawn_stream_task_none() {
         smol::block_on(async {
             let lua = Lua::new();
-            let child = test_setup_spawn().await.unwrap();
-            let arc = Arc::new(RwLock::new(child));
-            let stderr = stream_to_lua_string(lua.clone(), arc.clone(), StdStream::Stderr)
-                .await
-                .unwrap();
-            assert_eq!(stderr, LuaValue::Nil);
+            let task = spawn_stream_task(None::<smol::io::Empty>).await;
+            let result = read_stream_task(lua, task).await;
+            assert!(result.is_err());
+        });
+    }
+
+    #[test]
+    fn test_read_stream_task() {
+        smol::block_on(async {
+            let lua = Lua::new();
+            let mut child = test_setup_spawn().await.unwrap();
+            let task = spawn_stream_task(child.stdout.take()).await;
+            let value = read_stream_task(lua.clone(), task).await.unwrap();
+            assert!(matches!(value, LuaValue::String(_)));
+            assert!(value.to_string().unwrap().starts_with("rustc"));
+        });
+    }
+
+    #[test]
+    fn test_read_stream_task_empty() {
+        smol::block_on(async {
+            let lua = Lua::new();
+            let mut child = test_setup_spawn().await.unwrap();
+            let task = spawn_stream_task(child.stderr.take()).await;
+            let value = read_stream_task(lua.clone(), task).await.unwrap();
+            assert!(matches!(value, LuaValue::Nil));
+        });
+    }
+
+    #[test]
+    fn test_read_stream_none() {
+        smol::block_on(async {
+            let lua = Lua::new();
+            let none = Arc::new(Mutex::new(None));
+            let result = read_stream_task(lua.clone(), none).await;
+            assert!(result.is_err());
         });
     }
 
