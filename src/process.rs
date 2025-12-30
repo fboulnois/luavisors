@@ -35,11 +35,17 @@ where
 
 /// Spawn a new process from Lua
 async fn lua_spawn(_lua: &Lua, cmd: String, args: LuaMultiValue) -> LuaResult<Child> {
-    let args: Vec<String> = args
-        .into_iter()
-        .map(|arg| arg.to_string())
-        .collect::<LuaResult<_>>()?;
-    Ok(spawn(cmd, args).await?)
+    let mut vargs = Vec::new();
+    for arg in args {
+        match arg {
+            LuaValue::Table(t) => vargs.extend(
+                t.sequence_values::<String>()
+                    .collect::<LuaResult<Vec<_>>>()?,
+            ),
+            _ => vargs.push(arg.to_string()?),
+        }
+    }
+    Ok(spawn(cmd, vargs).await?)
 }
 
 /// `stdout` and `stderr` standard streams
@@ -188,6 +194,20 @@ mod tests {
             let args = LuaMultiValue::from(vec![LuaValue::String(
                 lua.create_string("--version").unwrap(),
             )]);
+            let mut child = lua_spawn(&lua, cmd, args).await.unwrap();
+            let status = child.status().await.unwrap();
+            assert!(status.success());
+        });
+    }
+
+    #[test]
+    fn test_lua_spawn_with_table() {
+        smol::block_on(async {
+            let lua = Lua::new();
+            let cmd = "rustc".to_string();
+            let table = lua.create_table().unwrap();
+            table.set(1, "--version").unwrap();
+            let args = LuaMultiValue::from(vec![LuaValue::Table(table)]);
             let mut child = lua_spawn(&lua, cmd, args).await.unwrap();
             let status = child.status().await.unwrap();
             assert!(status.success());
