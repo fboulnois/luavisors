@@ -121,7 +121,7 @@ pub async fn exec(lua: Lua, (cmd, args): (String, LuaMultiValue)) -> LuaResult<L
                 let code = status
                     .signal()
                     .or_else(|| status.code())
-                    .ok_or(LuaError::runtime("failed to get status code".to_string()))?;
+                    .ok_or(LuaError::runtime("failed to get status code"))?;
                 Ok(code)
             }
         })?,

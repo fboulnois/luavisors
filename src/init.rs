@@ -32,7 +32,7 @@ async fn every(_lua: Lua, (n, func, args): (u64, LuaFunction, LuaMultiValue)) ->
 async fn kill(_lua: Lua, (pid, sig): (i32, i32)) -> LuaResult<i32> {
     unix::kill(pid, sig)
         .await
-        .map_err(|err| LuaError::runtime(err.to_string()))
+        .map_err(|err| LuaError::runtime(err))
 }
 
 /// Return the `init` Lua module
