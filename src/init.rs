@@ -15,10 +15,15 @@ async fn sleep(_lua: Lua, n: u64) -> LuaResult<u64> {
 }
 
 /// Asynchronously call a Lua function every `n` seconds
-async fn every(_lua: Lua, (n, func, args): (u64, LuaFunction, LuaMultiValue)) -> LuaResult<()> {
+async fn every(lua: Lua, (n, func, args): (u64, LuaFunction, LuaMultiValue)) -> LuaResult<()> {
+    let weak_lua = lua.weak();
     smol::spawn(async move {
         let mut timer = smol::Timer::interval(std::time::Duration::from_secs(n));
         while let Some(_instant) = timer.next().await {
+            // stop task if the Lua instance has been destroyed
+            let Some(_lua) = weak_lua.try_upgrade() else {
+                break;
+            };
             if let Err(err) = func.call_async::<()>(args.clone()).await {
                 eprintln!("error in 'init.every' task: {}", err);
             }
