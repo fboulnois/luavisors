@@ -19,9 +19,10 @@ async fn every(_lua: Lua, (n, func, args): (u64, LuaFunction, LuaMultiValue)) ->
     smol::spawn(async move {
         let mut timer = smol::Timer::interval(std::time::Duration::from_secs(n));
         while let Some(_instant) = timer.next().await {
-            func.call_async::<()>(args.clone()).await?;
+            if let Err(err) = func.call_async::<()>(args.clone()).await {
+                eprintln!("error in 'init.every' task: {}", err);
+            }
         }
-        Ok::<_, LuaError>(())
     })
     .detach();
     Ok(())
@@ -74,6 +75,30 @@ mod tests {
         let func = lua.create_function(|_, ()| Ok(())).unwrap();
         let result = smol::block_on(every(lua, (n, func, LuaMultiValue::new())));
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_every_with_error() {
+        let lua = Lua::new();
+        let globals = lua.globals();
+        globals.set("count", 0).unwrap();
+        let n = 0;
+        let code = r#"
+                count = count + 1
+                if count == 1 then
+                    error("Boom!")
+                end
+            "#;
+        let func = lua.load(code).into_function().unwrap();
+        smol::block_on(async {
+            every(lua.clone(), (n, func, LuaMultiValue::new()))
+                .await
+                .unwrap();
+            smol::Timer::after(std::time::Duration::from_millis(20)).await;
+            let count: i32 = globals.get("count").unwrap();
+            // ensure that function continues to run after error
+            assert!(count > 1);
+        });
     }
 
     #[test]
