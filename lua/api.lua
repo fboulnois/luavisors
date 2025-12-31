@@ -6,50 +6,47 @@ local init = require('init')
 -- Print parent process id
 print('parent pid:', init.pid())
 
--- Start a child process asynchronously
-local sleep1 = init.exec('sleep', '5')
+-- Start child process asynchronously
+local child1 = init.exec('printf', '%s', 'hello world')
 
--- Print child process id
-print('sleep pid:', sleep1:pid())
+-- print child process id
+print('child1 pid:', child1:pid())
 
--- Start another child process asynchronously
-local echo = init.exec('echo', 'hello', 'world')
-
--- Print child process output, will print before sleep finishes
-print('echo stdout:', echo:stdout())
+-- Print child process output
+print('child1 stdout:', child1:stdout())
 
 -- Check that no error occurred
-print('echo no error:', echo:stderr() == nil)
+print('child1 stderr is empty:', child1:stderr() == nil)
+
+-- Check that process exited with code 0
+print('child1 exited normally:', child1:status() == 0)
+
+-- Start a child process asynchronously
+local child2 = init.exec('sleep', 2)
 
 -- Terminate the child process directly
-sleep1:kill()
+child2:kill()
 
--- Verify that the sleep process was killed
-print('sleep1 exited with SIGKILL:', sleep1:status() == init.signal.SIGKILL)
+-- Verify that the child process was killed
+print('child2 exited with SIGKILL:', child2:status() == init.signal.SIGKILL)
 
--- Start another sleep process asynchronously
-local sleep2 = init.exec('sleep', '5')
+-- Start another child process asynchronously
+local child3 = init.exec('sleep', 2)
 
 -- Send a signal to the child process
-init.kill(sleep2:pid(), init.signal.SIGTERM)
+init.kill(child3:pid(), init.signal.SIGTERM)
 
--- Verify that the sleep process was killed
-print('sleep2 exited with SIGTERM:', sleep2:status() == init.signal.SIGTERM)
+-- Verify that the child process was killed
+print('child3 exited with SIGTERM:', child3:status() == init.signal.SIGTERM)
 
--- Start a third sleep process asynchronously
-local sleep3 = init.exec('sleep', '1')
-
--- Verify that the sleep process exited normally
-print('sleep3 exited normally:', sleep3:status() == 0)
-
--- Start an echo process asynchronously
-local function echo(...)
-    local child = init.exec('echo', ...)
-    print('echo stdout:', child:stdout())
+-- Define an asynchronous job that prints the current time and arguments
+local function job(...)
+    local child = init.exec('printf', '%s %s %s', os.date("%X"), ...)
+    print('job stdout:', child:stdout())
 end
 
--- Run the echo function every 2 seconds
-init.every(2, echo, 'hello', 'world')
+-- Run the job function every second
+init.every(1, job, 'hello', 'world')
 
--- Sleep for 5 seconds to allow the echo function to run
-init.sleep(5)
+-- Sleep for enough time to allow the job function to run multiple times
+init.sleep(3)
