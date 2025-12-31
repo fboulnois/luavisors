@@ -38,11 +38,9 @@ local function check_for_updates()
     -- launch the "updated" software
     software = exec_software()
     print('software restarted with pid', software:pid())
-    assert(software:status() == 0)
-    print('software completed')
 end
 
-init.every(5, check_for_updates)
+init.every(3, check_for_updates)
 
--- wait for software to finish
-init.sleep(10)
+-- wait for update to complete
+init.sleep(5)
