@@ -9,16 +9,16 @@ async fn pid(_lua: Lua, _: ()) -> LuaResult<u32> {
 }
 
 /// Sleep the Lua runtime for `n` seconds
-async fn sleep(_lua: Lua, n: u64) -> LuaResult<u64> {
-    smol::Timer::after(std::time::Duration::from_secs(n)).await;
+async fn sleep(_lua: Lua, n: f64) -> LuaResult<f64> {
+    smol::Timer::after(std::time::Duration::from_secs_f64(n)).await;
     Ok(n)
 }
 
 /// Asynchronously call a Lua function every `n` seconds
-async fn every(lua: Lua, (n, func, args): (u64, LuaFunction, LuaMultiValue)) -> LuaResult<()> {
+async fn every(lua: Lua, (n, func, args): (f64, LuaFunction, LuaMultiValue)) -> LuaResult<()> {
     let weak_lua = lua.weak();
     smol::spawn(async move {
-        let mut timer = smol::Timer::interval(std::time::Duration::from_secs(n));
+        let mut timer = smol::Timer::interval(std::time::Duration::from_secs_f64(n));
         while let Some(_instant) = timer.next().await {
             // stop task if the Lua instance has been destroyed
             let Some(_lua) = weak_lua.try_upgrade() else {
@@ -67,7 +67,7 @@ mod tests {
     #[test]
     fn test_sleep() {
         let lua = Lua::new();
-        let n = 0;
+        let n = 0.0;
         let result = smol::block_on(sleep(lua, n));
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), n);
@@ -76,7 +76,7 @@ mod tests {
     #[test]
     fn test_every() {
         let lua = Lua::new();
-        let n = 0;
+        let n = 0.0;
         let func = lua.create_function(|_, ()| Ok(())).unwrap();
         let result = smol::block_on(every(lua, (n, func, LuaMultiValue::new())));
         assert!(result.is_ok());
@@ -87,7 +87,7 @@ mod tests {
         let lua = Lua::new();
         let globals = lua.globals();
         globals.set("count", 0).unwrap();
-        let n = 0;
+        let n = 0.0;
         let code = r#"
                 count = count + 1
                 if count == 1 then
